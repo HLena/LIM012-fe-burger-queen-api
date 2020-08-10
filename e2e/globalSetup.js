@@ -2,7 +2,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const nodeFetch = require('node-fetch');
 const kill = require('tree-kill');
-const setup = require('@shelf/jest-mongodb/setup');
+const { MongoMemoryServer } = require('mongodb-memory-server');
 
 const config = require('../src/config');
 
@@ -31,7 +31,7 @@ const __e2e = {
 };
 
 const fetch = (url, opts = {}) => {
-  // console.log(baseUrl, url);
+  console.log(baseUrl, url);
   return nodeFetch(`${baseUrl}${url}`, {
     ...opts,
     headers: {
@@ -60,8 +60,8 @@ const createTestUser = () => fetchAsAdmin('/users', {
   body: __e2e.testUserCredentials,
 })
   .then((resp) => {
-    // console.log(__e2e.testUserCredentials);
-    // resp.json().then((result) => console.log(result));
+    console.log(__e2e.testUserCredentials);
+    resp.json().then((result) => console.log(result));
     if (resp.status !== 200) {
       throw new Error('Could not create test user');
     }
@@ -110,9 +110,13 @@ module.exports = () => new Promise((resolve, reject) => {
   }
 
   // TODO: Configurar DB de tests
+  const mongod = new MongoMemoryServer();
 
-  setup().then(() => {
-    console.log(process.env.MONGO_URL, 'mongo url'); // eslint-disable-line
+  mongod.getConnectionString().then((mongoUrl) => {
+    process.env.DB_URL = mongoUrl; 
+    // console.log(process.env.MONGO_URL, 'mongo url'); // eslint-disable-line
+    console.info('\nIn-memory mongo server ', mongoUrl);
+
     console.info('Staring local server...');
     const child = spawn('npm', ['start', process.env.PORT || 8888], {
       cwd: path.resolve(__dirname, '../'),
@@ -148,13 +152,19 @@ module.exports = () => new Promise((resolve, reject) => {
       });
   });
 
-  // Export globals - ugly... :-(
-  global.__e2e = __e2e;
-
-  // Export stuff to be used in tests!
-  process.baseUrl = baseUrl;
-  process.fetch = fetch;
-  process.fetchWithAuth = fetchWithAuth;
-  process.fetchAsAdmin = fetchAsAdmin;
-  process.fetchAsTestUser = fetchAsTestUser;
 });
+
+// Export globals - ugly... :-(
+global.__e2e = __e2e;
+
+// Export stuff to be used in tests!
+process.baseUrl = baseUrl;
+// console.log('lasdasd1');
+process.fetch = fetch;
+// console.log('lasdasd2');
+process.fetchWithAuth = fetchWithAuth;
+// console.log('lasdasd3');
+process.fetchAsAdmin = fetchAsAdmin;
+// console.log('lasdasd4');
+process.fetchAsTestUser = fetchAsTestUser;
+// console.log('lasdasd5');

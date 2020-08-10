@@ -55,5 +55,8 @@
     "node-fetch": "2.6.0",
     "nodemon": "2.0.4",
     "tree-kill": "^1.2.2"
+  },
+  "jest": {
+    "testEnvironment": "node"
   }
 }
