@@ -1,16 +1,22 @@
 const bcrypt = require('bcrypt');
 const User = require('../models/user.model');
-const { getPagination } = require('../utils/utils');
-const { uidOrEmail } = require('../utils/utils');
+const {
+  uidOrEmail, getPagination, isAWeakPassword, isAValidEmail,
+} = require('../utils/utils');
+const { isAdmin } = require('../middleware/auth');
 
 module.exports = {
   getUsers: async (req, res) => {
     const url = `${req.protocol}://${req.get('host')}${req.path}`;
+
     const options = {
       limit: parseInt(req.query.limit, 10) || 10,
       page: parseInt(req.query.page, 10) || 1,
+      select: '-password',
     };
+
     const responsePaginated = await User.paginate({}, options);
+
     res.set(
       'link',
       getPagination(
@@ -21,69 +27,84 @@ module.exports = {
       ),
     );
 
-    res.json({
-      users: responsePaginated.docs,
-    });
+    return res.json(responsePaginated.docs);
   },
+
   getOneUser: async (req, res, next) => {
     try {
       const userObj = uidOrEmail(req.params.uid);
-      const user = await User.findOne(userObj);
-      res.json({
-        user: {
-          _id: user._id,
-          email: user.email,
-          roles: user.roles,
-        },
+      const user = await User.findOne(userObj).lean();
+
+      return res.json({
+        _id: user._id,
+        email: user.email,
+        roles: user.roles,
       });
     } catch (error) {
-      next(404);
+      return next(404);
     }
   },
   createUser: async (req, res, next) => {
     try {
-      if (!req.body.email || !req.body.password) next(400);
-      req.body.password = bcrypt.hashSync(req.body.password, 10);
-      const newUser = await User.create(req.body);
-      res.json({
-        user: {
-          _id: newUser._id,
-          email: newUser.email,
-          roles: newUser.roles,
-        },
+      const user = req.body;
+      if (!user || !user.email || !user.password) return next(400);
+
+      const userFound = await User.findOne({ email: user.email });
+      if (userFound) return next(403);
+
+      // valida si la contrasenia es mayor o igual a tres caracteres
+      if (user.password && isAWeakPassword(user.password)) return next(400);
+      if (user.email && !isAValidEmail(user.email)) return next(400);
+
+      user.password = bcrypt.hashSync(user.password, 10);
+
+      const newUser = await User.create(user);
+      return res.json({
+        _id: newUser._id,
+        email: newUser.email,
+        roles: newUser.roles,
       });
     } catch (err) {
-      next(403);
+      return next(404);
     }
   },
+
   updateUser: async (req, res, next) => {
+    const user = req.body;
     try {
-      if (!req.body.email || !req.body.password) next(400);
-      if (req.body.roles) next(403);
       const obj = uidOrEmail(req.params.uid);
-      const user = req.body;
+      const userFound = await User.findOne(obj);
+      if (!userFound) return next(404);
+      if (!isAdmin(req) && user.roles) return next(403);
+
+      if (!user.email && !user.password) return next(400);
+      if (user.password && isAWeakPassword(user.password)) return next(400);
+      if (user.email && !isAValidEmail(user.email)) return next(400);
+
       user.password = bcrypt.hashSync(user.password, 10);
-      const userUpdate = await User.findOneAndUpdate(obj, user, {
-        new: true,
-      });
-      res.json({ user: userUpdate });
-    } catch (err) {
-      next(404);
+
+      const userUpdate = await User.findOneAndUpdate(obj, user, { new: true });
+      return res.json(userUpdate);
+    } catch (error) {
+      return next(404);
     }
   },
   deleteUser: async (req, res, next) => {
     try {
       const userObj = uidOrEmail(req.params.uid);
-      const deletedUser = await User.findOneAndDelete(userObj);
-      res.json({
-        user: {
-          _id: deletedUser._id,
-          email: deletedUser.email,
-          roles: deletedUser.roles,
-        },
+
+      // const userFound = await User.findOne(userObj);
+      // if (!userFound) return next(404);
+
+      const deletedUser = await User.findOneAndDelete(userObj).lean();
+
+      return res.json({
+        _id: deletedUser._id,
+        email: deletedUser.email,
+        roles: deletedUser.roles,
       });
     } catch (err) {
-      next(404);
+      return next(404);
     }
   },
 };

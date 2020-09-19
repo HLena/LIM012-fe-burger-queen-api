@@ -2,11 +2,13 @@ const path = require('path');
 const { spawn } = require('child_process');
 const nodeFetch = require('node-fetch');
 const kill = require('tree-kill');
+const setup = require('@shelf/jest-mongodb/setup');
 
 const config = require('../src/config');
 
 const port = process.env.PORT || 8888;
 const baseUrl = process.env.REMOTE_URL || `http://127.0.0.1:${port}`;
+
 
 const __e2e = {
   port,
@@ -15,24 +17,21 @@ const __e2e = {
     email: config.adminEmail,
     password: config.adminPassword,
   },
-  adminToken:
-    'bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiI1ZjE1Y2FmMzlhNTAzNjAwNjQ3MzFlNjkiLCJpYXQiOjE1OTUyNjUwMjV9.k58VoCOGR0sygYZg4rzmAkKgswocS3V20iX3F5o26i0',
+  adminToken: null,
   testUserCredentials: {
-    email: 'root@gmail.com',
-    password: 'root',
+    email: 'test@test.test',
+    password: '123456',
   },
-  testUserToken:
-    'bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiI1ZjE1Y2FmMzlhNTAzNjAwNjQ3MzFlNjkiLCJpYXQiOjE1OTUyNjUwMjV9.k58VoCOGR0sygYZg4rzmAkKgswocS3V20iX3F5o26i0',
-  childProcessPid:
-    'bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiI1ZjE1Y2FmMzlhNTAzNjAwNjQ3MzFlNjkiLCJpYXQiOjE1OTUyNjUwMjV9.k58VoCOGR0sygYZg4rzmAkKgswocS3V20iX3F5o26i0',
+  testUserToken: null,
+  childProcessPid: null,
   // in `testObjects` we keep track of objects created during the test run so
   // that we can clean up before exiting.
   // For example: ['users/foo@bar.baz', 'products/xxx', 'orders/yyy']
   // testObjects: [],
 };
 
-const fetch = (url, opts = {}) =>
-  nodeFetch(`${baseUrl}${url}`, {
+const fetch = (url, opts = {}) => {
+    return nodeFetch(`${baseUrl}${url}`, {
     ...opts,
     headers: {
       'content-type': 'application/json',
@@ -41,67 +40,52 @@ const fetch = (url, opts = {}) =>
     ...(opts.body && typeof opts.body !== 'string'
       ? { body: JSON.stringify(opts.body) }
       : {}),
-  });
-
-const fetchWithAuth = (token) => (url, opts = {}) =>
-  fetch(url, {
-    ...opts,
-    headers: {
-      ...opts.headers,
-      authorization: `Bearer ${token}`,
-    },
-  });
-
-const fetchAsAdmin = (url, opts) => {
-  console.log(__e2e.adminToken);
-
-  return fetchWithAuth(__e2e.adminToken)(url, opts);
+    });
 };
 
-const fetchAsTestUser = (url, opts) =>
-  fetchWithAuth(__e2e.testUserToken)(url, opts);
+const fetchWithAuth = (token) => (url, opts = {}) => fetch(url, {
+  ...opts,
+  headers: {
+    ...opts.headers,
+    authorization: `Bearer ${token}`,
+  },
+});
 
-const createTestUser = () =>
-  fetchAsAdmin('/users', {
-    method: 'POST',
-    body: __e2e.testUserCredentials,
+const fetchAsAdmin = (url, opts) => fetchWithAuth(__e2e.adminToken)(url, opts);
+const fetchAsTestUser = (url, opts) => fetchWithAuth(__e2e.testUserToken)(url, opts);
+
+const createTestUser = () => fetchAsAdmin('/users', {
+  method: 'POST',
+  body: __e2e.testUserCredentials,
   })
-    .then((resp) => {
-      console.log(__e2e.testUserCredentials);
-      resp.json().then((result) => console.log(result));
+  .then((resp) => {
+    if (resp.status !== 200) {
+      throw new Error('Could not create test user');
+    }
+    return fetch('/auth', { method: 'POST',body: __e2e.testUserCredentials });
+  })
+  .then((resp) => {
+    if (resp.status !== 200) {
+      throw new Error('Could not authenticate test user');
+    }
+    return resp.json();
+  })
+  .then(({ token }) => Object.assign(__e2e, { testUserToken: token })
+);
 
-      if (resp.status !== 200) {
-        throw new Error('Could not create test userblablabala 1234');
-      }
-      return fetch('/auth', {
-        method: 'POST',
-        body: __e2e.testUserCredentials,
-      });
-    })
-    .then((resp) => {
-      if (resp.status !== 200) {
-        throw new Error('Could not authenticate test user');
-      }
-      return resp.json();
-    })
-    .then(({ token }) => Object.assign(__e2e, { testUserToken: token }));
-
-const checkAdminCredentials = () =>
-  fetch('/auth', {
+const checkAdminCredentials = () => fetch('/auth', {
     method: 'POST',
     body: __e2e.adminUserCredentials,
   })
-    .then((resp) => {
-      if (resp.status !== 200) {
-        throw new Error('Could not authenticate as admin user');
-      }
+  .then((resp) => {
+    if (resp.status !== 200) {
+      throw new Error('Could not authenticate as admin user');
+    }
+    return resp.json();
+  })
+  .then(({ token }) => Object.assign(__e2e, { adminToken: token }));
 
-      return resp.json();
-    })
-    .then(({ token }) => Object.assign(__e2e, { adminToken: token }));
-
-const waitForServerToBeReady = (retries = 10) =>
-  new Promise((resolve, reject) => {
+const waitForServerToBeReady = (retries = 10) =>  new Promise((resolve, reject) => {
     if (!retries) {
       return reject(new Error('Server took to long to start'));
     }
@@ -117,15 +101,16 @@ const waitForServerToBeReady = (retries = 10) =>
     }, 1000);
   });
 
-module.exports = () =>
-  new Promise((resolve, reject) => {
-    if (process.env.REMOTE_URL) {
-      console.info(`Running tests on remote server ${process.env.REMOTE_URL}`);
-      return resolve();
-    }
+module.exports = () => new Promise((resolve, reject) => { 
+  if (process.env.REMOTE_URL) {
+    console.info(`Running tests on remote server ${process.env.REMOTE_URL}`);
+    return resolve();
+  }
 
-    // TODO: Configurar DB de tests
+  // TODO: Configurar DB de tests
 
+  setup().then(() => {
+    console.log(process.env.MONGO_URL, 'mongo url'); // eslint-disable-line
     console.info('Staring local server...');
     const child = spawn('npm', ['start', process.env.PORT || 8888], {
       cwd: path.resolve(__dirname, '../'),
@@ -160,6 +145,8 @@ module.exports = () =>
         kill(child.pid, 'SIGKILL', () => reject(err));
       });
   });
+
+});
 
 // Export globals - ugly... :-(
 global.__e2e = __e2e;
