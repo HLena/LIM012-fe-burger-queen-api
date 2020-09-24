@@ -10,7 +10,7 @@ const pkg = require('../package.json');
 
 const { port, dbUrl, secret } = config;
 const app = express();
-
+console.log(port, dbUrl, secret);
 console.log('aqui la URL de la BD:', dbUrl);
 mongoose.connect(dbUrl, {
   useNewUrlParser: true,
