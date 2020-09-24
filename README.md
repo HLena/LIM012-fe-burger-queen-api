@@ -20,24 +20,28 @@ Node.js nos permite crear servidores web super eficientes de manera relativament
 
 En este proyecto partimos de un boilerplate que ya contiene una serie de endpoints (puntos de conexión o URLs) y nos piden completar la aplicación. Esto implica que tendremos que partir por leer la implementación existente, y familiarizarnos con el stack elegido (Node.js y Express) y complementarlo con un motor de bases de datos, el cual tu deberás elegir entre MongoDB y MySQL.
 
-La clienta nos ha dado un link a la documentación que especifica el comportamiento esperado de la API que expondremos por HTTP. Ahí puedes encontrar todos los detalles de qué endpoints debe implementar la aplicación, qué parámetros esperan, qué deben responder, etc.
+La clienta nos ha dado un [link]('https://laboratoria.github.io/burger-queen-api/') a la documentación que especifica el comportamiento esperado de la API que expondremos por HTTP. Ahí puedes encontrar todos los detalles de qué endpoints debe implementar la aplicación, qué parámetros esperan, qué deben responder, etc.
 
-## CLI 📦
-
-```sh
-# Arranca la aplicación el puerto 8888 usando npm
-npm start 8888
-```
+<p align="center">
+  <img src="./img/http.png">
+</p>
 
 ---
 
-## JavaScript 💻
+### Variables de Entornos 
+- ```PORT y DB_URL``` Se especifican y configuran en el archivo docker-compose.yml,  de no ser el puerto por defecto sus valores son ```PORT:8080``` y ```DB_URL:mongodb://localhost:27017/burguer-queen-test```
 
-### 🔗 Documentation
+- ```JWT_SECRET, ADMIN_EMAIL y ADMIN_PASSWORD``` se especifican y configuran  el archivo ```secrets.env```, sus valores por defecto son ```JWT_SECRET: xxxxxxxx, ADMIN_EMAIL:admin@localhost y ADMIN_PASSWORD:changeme```.
+  
 
-- **\_**
+## Deploymnet
 
----
+Este proyecto se implemento para poder desplegarse en un servidor en la nube(VPS) y hacer uso de contenedores(Docker), por ello cuenta con un archivo docker-compose.yml en el cual se especifican los contenedores que se han de crear, los puertos que se utilizaran, variables de entorno, etc.  Todo esto con el objetivo de que esta aplicación pueda ser desplegada sin dificulta en cualquier entorno.
+Para levantar la aplicación en el VPS simplement ejecutar el ```docker-compose up```.
+
+- AWS: 
+  - IPV4: http://3.131.119.45/
+  - DNS: [ec2-3-131-119-45.us-east-2.compute.amazonaws.com](http://ec2-3-131-119-45.us-east-2.compute.amazonaws.com/)
 
 ### 🔗 Dependencias
 
